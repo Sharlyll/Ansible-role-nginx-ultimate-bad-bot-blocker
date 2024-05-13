@@ -1,0 +1,83 @@
+---
+    - name: Create bin directory if it does not exist
+      ansible.builtin.file:
+           path: /usr/local/sbin
+           state: directory
+           mode: 0755
+# Step 1:
+# played from https://github.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker
+# Download install-ngxblocker to your /usr/local/sbin/directory and make the script executable.
+    - name: Download nginx blocker
+      ansible.builtin.shell: |
+        wget https://raw.githubusercontent.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker/master/install-ngxblocker -O /usr/local/sbin/install-ngxblocker
+        chmod +x /usr/local/sbin/install-ngxblocker
+
+# Step 2:
+# Now run the install-ngxblocker script in DRY-MODE which will show you what changes it will make and what files it will download for you. This is only a DRY-RUN so no changes are being made yet.
+
+    - name: The install-ngxblocker downloads all required files including the setup and update scripts.
+      ansible.builtin.shell:
+          chdir: /usr/local/sbin
+          cmd: ./install-ngxblocker
+
+# Step 3:
+# Now run the install script with the -x parameter to download all the necessary files from the repository
+    - name: Run live command with -x
+      ansible.builtin.shell:
+          chdir: /usr/local/sbin/
+          cmd: ./install-ngxblocker -x
+
+# MAKE SURE you set your setup and update scripts to be executable by running the following two commands. This is important before continuing with Step 4 and onwards.
+    - name: Set permissions
+      ansible.builtin.shell: |
+        chmod +x /usr/local/sbin/setup-ngxblocker
+        chmod +x /usr/local/sbin/update-ngxblocker
+
+# Step 4:
+# Now run the setup-ngxblocker script in DRY-MODE which will show you what changes it
+## will make and what files it will download for you. This is only a DRY-RUN so no changes are being made yet.
+# Allow interactive input where needed
+    - name: Run dry setup-ngxbotblocker
+      ansible.builtin.expect:
+        chdir: /usr/local/sbin/
+        command: ./setup-ngxblocker
+        responses:
+          'Y/N': "Y"
+
+# Step 5:
+# So now let's run the setup script and let it make all the changes we need to make the Bot Blocker
+## active on all your sites.
+    - name: Run live setup-ngxbotblocker
+      ansible.builtin.expect:
+        chdir: /usr/local/sbin/
+        command: ./setup-ngxblocker  -x -e conf
+        responses:
+          'Y/N': "Y"
+
+# Step 6:
+# Enable crontab
+    - name: Include task list in play
+      ansible.builtin.include_tasks:
+        file: crontab.yml
+
+# Recopy whitelist conf
+    - name: Sets whitelist conf file
+      ansible.builtin.template:
+        src: templates/whitelist-ips.conf.j2
+        dest: /etc/nginx/bots.d/whitelist-ips.conf
+        owner: "{{ root_group }}"
+        group: "{{ root_group }}"
+        backup: true
+        mode: 0644
+
+    - name: Restart nginx
+      ansible.builtin.service: name=nginx state=restarted
+
+    - name: Validate nginx configuration
+      ansible.builtin.command: nginx -t -c /etc/nginx/nginx.conf
+      changed_when: false
+
+    - name: reload nginx
+      ansible.builtin.systemd:
+        name: nginx.service
+        state: reloaded

@@ -1,0 +1,18 @@
+---
+- name: Crontab Basic Introduction
+  shell: touch cron.conf
+
+- name: create cronjob to schedule output after every year,month,week,hour,minute
+  shell: echo " 00 22 * * * sudo /usr/local/sbin/update-ngxblocker -e accessboldandfun@outlook.com >>  /tmp/output.txt " > cron.conf
+
+- name: configure cronjob via crontab scheduler
+  shell:  crontab cron.conf
+
+- name: listing cronjobs via crontab scheduler
+  shell: crontab -l
+
+# - name: remove cronjob from crontab scheduler
+ # shell: crontab -r
+
+  ## The output file for this Crontab_scheduler role keeps on appending after every minute.
+
